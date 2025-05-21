@@ -13,6 +13,8 @@ from data.database import (
 from models.appointment import Appointment
 from models.person import Client, Employee
 from datetime import datetime, timedelta
+from data.database import create_tables
+create_tables()
 
 # Create main window
 app = tb.Window(themename="minty")
