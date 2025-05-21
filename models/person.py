@@ -1,22 +1,24 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 @dataclass
 class Person:
-    name: str
-    email: str
-    phone: str
-    id: int = field(default=None, init=False)  
+    def __init__(self, name, email, phone):
+        self.name = name
+        self.email = email
+        self.phone = phone
 
-    
-@dataclass
+    def __str__(self):
+        return f"{self.name} ({self.email})"
+
 class Client(Person):
-  pass
+    def __init__(self, name, email="", phone=""):
+        super().__init__(name, email, phone)
 
-@dataclass
 class Employee(Person):
-    role: str
-    availability: list
+    def __init__(self, name, email, phone, role, availability):
+        super().__init__(name, email, phone)
+        self.role = role
+        self.availability = availability  # List of available days (e.g., ["Monday", "Tuesday"])
 
-    def is_available(self,time_slot):
-        return time_slot in self.availability
-    
+    def __str__(self):
+        return f"{self.name} - {self.role} ({self.email})"

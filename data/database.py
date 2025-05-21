@@ -131,17 +131,33 @@ def get_clients():
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM clients')
-    clients = cursor.fetchall()
+    rows = cursor.fetchall()
     conn.close()
+
+    clients = []
+    for row in rows:
+        client = Client(name=row[1], email=row[2], phone=row[3])
+        client.id = row[0]
+        clients.append(client)
     return clients
+
 
 def get_employees():
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM employees')
-    employees = cursor.fetchall()
+    rows = cursor.fetchall()
     conn.close()
+    
+    employees = []
+    for row in rows:
+        availability = row[5].split(",") if row[5] else []
+        emp = Employee(name=row[1], email=row[2], phone=row[3], role=row[4], availability=availability)
+        emp.id = row[0]
+        employees.append(emp)
     return employees
+
+
 
 def get_appointments():
     conn = create_connection()

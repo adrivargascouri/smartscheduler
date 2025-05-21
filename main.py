@@ -56,8 +56,8 @@ def load_employees():
     employee_labels = []
 
     for emp in employees:
-        label = f"{emp[1]} ({emp[2]})"  # Nombre (Correo)
-        employee_options[label] = emp[2]  # Guarda el correo
+        label = f"{emp.name} ({emp.email})"  # Accede a atributos, no índices
+        employee_options[label] = emp.email  # Guarda el email como clave
         employee_labels.append(label)
 
     employee_combobox['values'] = employee_labels
@@ -125,6 +125,7 @@ schedule_button.grid(row=4, columnspan=2, pady=25)
 tab_view = tb.Frame(notebook)
 notebook.add(tab_view, text="👁 View Appointments")
 
+
 tree = ttk.Treeview(tab_view, columns=("Client", "Employee", "Start Time", "End Time", "Status"), show="headings")
 tree.heading("Client", text="Client")
 tree.heading("Employee", text="Employee")
@@ -143,15 +144,65 @@ def load_appointments():
     for row in tree.get_children():
         tree.delete(row)
     for appointment in appointments:
-        client_name = appointment[1]
-        employee_name = appointment[2]
-        start_time = appointment[3]
-        end_time = appointment[4]
-        status = appointment[5]
-        tree.insert("", "end", values=(client_name, employee_name, start_time, end_time, status))
+        client_name, employee_name, start_time, end_time, status = appointment[1:]
+        
+        # Determinar el color según el estado
+        if status == "Scheduled":
+            tag = "scheduled"
+        elif status == "Completed":
+            tag = "completed"
+        elif status == "Cancelled":
+            tag = "cancelled"
+        else:
+            tag = ""
 
-load_button = tb.Button(tab_view, text="Load Appointments", bootstyle="info", command=load_appointments)
+        tree.insert("", "end", values=(client_name, employee_name, start_time, end_time, status), tags=(tag,))
+
+    # Estilos visuales
+    tree.tag_configure("scheduled", background="#e0f7fa")    # celeste
+    tree.tag_configure("completed", background="#d0f8ce")    # verde claro
+    tree.tag_configure("cancelled", background="#ffcdd2")    # rojo claro
+
+# Buttom for load appointments 
+load_button = tb.Button(tab_view, text="🔄 Load Appointments", bootstyle="info", command=load_appointments)
 load_button.pack(pady=10)
+
+# Buttoms to see the status
+status_frame = tb.Frame(tab_view)
+status_frame.pack(pady=5)
+
+tb.Button(status_frame, text="✔️ Complete", bootstyle="success", command=lambda: update_appointment_status("Completed")).grid(row=0, column=0, padx=10)
+tb.Button(status_frame, text="❌ Cancel", bootstyle="danger", command=lambda: update_appointment_status("Cancelled")).grid(row=0, column=1, padx=10)
+
+def clear_appointments():
+    for row in tree.get_children():
+        tree.delete(row)
+
+# Buttom to clean 
+clear_button = tb.Button(tab_view, text="🧹 Clear List", bootstyle="warning", command=clear_appointments)
+clear_button.pack(pady=5)
+
+def update_appointment_status(new_status):
+    selected = tree.focus()
+    if not selected:
+        messagebox.showerror("Error", "Please select an appointment.")
+        return
+
+    values = tree.item(selected, 'values')
+    start_time = values[2]
+    end_time = values[3]
+
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE appointments
+        SET status = ?
+        WHERE start_time = ? AND end_time = ?
+    ''', (new_status, start_time, end_time))
+    conn.commit()
+    conn.close()
+    load_appointments()
+    messagebox.showinfo("Success", f"Appointment marked as '{new_status}'.")
 
 # --- Tab 3: Cancel Appointment ---
 tab_cancel = tb.Frame(notebook)
@@ -194,14 +245,6 @@ def cancel_appointment():
 # Botón para cancelar cita
 cancel_button = tb.Button(tab_cancel, text="Cancel Appointment", bootstyle="danger", command=cancel_appointment)
 cancel_button.grid(row=1, columnspan=2, pady=25)
-
-
-def clear_appointments():
-    for row in tree.get_children():
-        tree.delete(row)
-
-clear_button = tb.Button(tab_view, text="Clear List", bootstyle="warning", command=clear_appointments)
-clear_button.pack(pady=5)
 
 # Run the app
 app.mainloop()
