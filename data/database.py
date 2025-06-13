@@ -2,8 +2,8 @@ import sqlite3
 from datetime import datetime
 from typing import List, Optional
 
-from models.person import Client, Employee
-from models.appointment import Appointment
+from smartscheduler.models.person import Client, Employee
+from smartscheduler.models.appointment import Appointment
 
 # ---------------------------------------------------------------------------
 # Constants

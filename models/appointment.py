@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from models.person import Client, Employee
+from smartscheduler.models.person import Client, Employee
 from datetime import datetime
 
 @dataclass

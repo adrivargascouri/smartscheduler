@@ -1,13 +1,14 @@
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from ttkbootstrap.widgets import DateEntry
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, PhotoImage
 from datetime import datetime, timedelta
+import tkinter as tk
 
 # ---------------------------------------------------------------------------
 # Local imports
 # ---------------------------------------------------------------------------
-from data.database import (
+from smartscheduler.data.database import (
     create_tables,
     add_client,
     add_employee,
@@ -18,53 +19,41 @@ from data.database import (
     get_appointments,
     update_appointment_status,
     cancel_appointments_by_client_id,
-    add_user,
-    validate_user,
-    get_user_by_username,
     STATUS_SCHEDULED,
     STATUS_COMPLETED,
     STATUS_CANCELLED,
 )
-from models.appointment import Appointment
-from models.person import Client, Employee
+from smartscheduler.models.appointment import Appointment
+from smartscheduler.models.person import Client, Employee
 
 # ---------------------------------------------------------------------------
 # Bootstrap DB
 # ---------------------------------------------------------------------------
 create_tables()
 
-CURRENT_THEME = "minty"
+CURRENT_THEME = "superhero"  # Try others like "cyborg", "morph", "minty"
 root = tb.Window(themename=CURRENT_THEME)
-root.withdraw()  # hidden until login success
+root.title("SmartScheduler")
+root.geometry("950x700")
+root.minsize(900, 600)
 
 tree = None
-user_role = None  # admin / employee / etc.
-
 
 # ---------------------------------------------------------------------------
 # Helper callbacks
 # ---------------------------------------------------------------------------
-def schedule_appointment(
-    name_entry,
-    employee_opts,
-    employee_combo,
-    date_picker,
-    time_combo,
-):
-    """Validate inputs, check availability and persist."""
+def schedule_appointment(name_entry, employee_opts, employee_combo, date_picker, time_combo):
     client_name = name_entry.get().strip()
     employee_label = employee_combo.get()
     employee_email = employee_opts.get(employee_label, "")
 
-    # ---- Fecha y hora elegidas ----
-    date_str = date_picker.entry.get().strip()          # dd/mm/yyyy
-    time_str = time_combo.get().strip()                 # HH:MM
+    date_str = date_picker.entry.get().strip()
+    time_str = time_combo.get().strip()
 
     if not all((client_name, employee_email, date_str, time_str)):
         messagebox.showerror("Error", "Please fill in all the fields.")
         return
 
-    # Parseo fecha y hora
     try:
         date_selected = datetime.strptime(date_str, "%d/%m/%Y").date()
         time_selected = datetime.strptime(time_str, "%H:%M").time()
@@ -75,20 +64,15 @@ def schedule_appointment(
     start_time = datetime.combine(date_selected, time_selected)
     end_time = start_time + timedelta(hours=1)
 
-    # ---- Disponibilidad ----
     employee = get_employee_by_email(employee_email)
     if not employee:
         messagebox.showerror("Error", "Employee not found.")
         return
 
     if not is_employee_available(employee.id, start_time, end_time):
-        messagebox.showerror(
-            "Error",
-            "The employee already has an appointment at that time."
-        )
+        messagebox.showerror("Error", "The employee already has an appointment at that time.")
         return
 
-    # ---- Persistencia ----
     client = Client(name=client_name)
     add_client(client)
 
@@ -100,22 +84,20 @@ def schedule_appointment(
         f"Appointment booked for {client_name} on {start_time:%d/%m/%Y %H:%M}."
     )
 
-    # Reset inputs
     name_entry.delete(0, "end")
     employee_combo.set("")
     date_picker.entry.delete(0, "end")
     date_picker.entry.insert(0, datetime.now().strftime("%d/%m/%Y"))
     time_combo.set("")
 
+    refresh_tree()
+
 
 def refresh_tree():
-    """Reload all appointments into the Treeview."""
     tree.delete(*tree.get_children())
     for ap in get_appointments():
         ap_id, client_name, employee_name, start, end, status = ap
-        tag = {"Scheduled": "scheduled",
-               "Completed": "completed",
-               "Cancelled": "cancelled"}.get(status, "")
+        tag = {"Scheduled": "scheduled", "Completed": "completed", "Cancelled": "cancelled"}.get(status, "")
         tree.insert(
             "",
             "end",
@@ -124,9 +106,9 @@ def refresh_tree():
             tags=(tag,)
         )
 
-    tree.tag_configure("scheduled", background="#e0f7fa")
-    tree.tag_configure("completed", background="#d0f8ce")
-    tree.tag_configure("cancelled", background="#ffcdd2")
+    tree.tag_configure("scheduled", background="#0099ff", foreground="#fff")
+    tree.tag_configure("completed", background="#43d97b", foreground="#fff")
+    tree.tag_configure("cancelled", background="#e04f5f", foreground="#fff")
 
 
 def mark_selected(new_status: str):
@@ -161,114 +143,102 @@ def cancel_by_client(name_entry):
     refresh_tree()
     name_entry.delete(0, "end")
 
-
 # ---------------------------------------------------------------------------
-# Login dialog
+# Main Dashboard Layout
 # ---------------------------------------------------------------------------
-def login_dialog():
-    login = tb.Toplevel()
-    login.title("Login")
-    login.geometry("320x210")
-    login.resizable(False, False)
+def launch_dashboard():
+    # HEADER (navbar)
+    header = tb.Frame(root, bootstyle="dark")
+    header.pack(side="top", fill="x")
 
-    tb.Label(login, text="Username:", bootstyle="info").pack(pady=(15, 5))
-    username_entry = tb.Entry(login, width=24)
-    username_entry.pack(pady=5)
-    username_entry.focus()
+    logo_img = None
+    try:
+        logo_img = PhotoImage(file="logo.png").subsample(8, 8)  # If you have a PNG logo
+        tb.Label(header, image=logo_img).pack(side="left", padx=12, pady=8)
+    except Exception:
+        pass  # Ignore if no logo
 
-    tb.Label(login, text="Password:", bootstyle="info").pack(pady=5)
-    password_entry = tb.Entry(login, show="*", width=24)
-    password_entry.pack(pady=5)
-
-    def attempt(event=None):
-        global user_role
-        user = username_entry.get()
-        pwd = password_entry.get()
-        role = validate_user(user, pwd)
-        if role:
-            user_role = role
-            login.destroy()
-            launch_main_app()
-        else:
-            messagebox.showerror("Login Failed", "Invalid credentials")
-
-    # Bind <Return> key
-    username_entry.bind("<Return>", attempt)
-    password_entry.bind("<Return>", attempt)
-
-    tb.Button(
-        login,
-        text="Acceder",
-        bootstyle="primary",
-        width=18,
-        command=attempt
-    ).pack(pady=15)
-
-    login.grab_set()
-
-
-# ---------------------------------------------------------------------------
-# Main application
-# ---------------------------------------------------------------------------
-def launch_main_app():
-    global tree, CURRENT_THEME
-
-    root.deiconify()
-    root.title("SmartScheduler")
-    root.geometry("720x560")
-
-    tb.Label(root, text="SmartScheduler", font=("Helvetica", 24, "bold"),
-             bootstyle="primary").pack(pady=20)
-
-    # Theme toggle
+    tb.Label(header, text="SmartScheduler", font=("Helvetica", 24, "bold")).pack(side="left", padx=8, pady=4)
+    
     def toggle_theme():
         global CURRENT_THEME
-        CURRENT_THEME = "darkly" if CURRENT_THEME == "minty" else "minty"
+        CURRENT_THEME = "cyborg" if CURRENT_THEME == "superhero" else "superhero"
         root.style.theme_use(CURRENT_THEME)
+    tb.Button(header, text="🌓 Theme", bootstyle="secondary", command=toggle_theme).pack(side="right", padx=16, pady=10)
 
-    tb.Button(root, text="🌓 Change Theme", bootstyle="secondary",
-              command=toggle_theme).pack(pady=10)
+    # --- MAIN BODY ---
+    main_frame = tb.Frame(root)
+    main_frame.pack(expand=True, fill="both", padx=0, pady=0)
 
-    notebook = ttk.Notebook(root)
-    notebook.pack(expand=True, fill="both", padx=20, pady=20)
+    # --- SUMMARY CARDS ---
+    cards_frame = tb.Frame(main_frame)
+    cards_frame.pack(fill="x", padx=30, pady=18)
 
-    # ========================================================================
-    # TAB 1 – Schedule
-    # ========================================================================
+    # Data for summary cards
+    employees = get_employees()
+    clients_count = len(set(ap[1] for ap in get_appointments()))
+    appointments_today = sum(
+        1 for ap in get_appointments()
+        if datetime.strptime(ap[3], "%Y-%m-%d %H:%M:%S").date() == datetime.now().date()
+    )
+    available_employees = len(employees)
+
+    cards = [
+        ("👩‍⚕️ Employees", len(employees), "info"),
+        ("🧑‍🤝‍🧑 Clients", clients_count, "success"),
+        ("📅 Appointments today", appointments_today, "warning"),
+        ("🟢 Available", available_employees, "primary"),
+    ]
+
+    for i, (title, value, style) in enumerate(cards):
+        card = tb.Frame(cards_frame)  # No outline bootstyle for Frame!
+        card.grid(row=0, column=i, padx=18, ipadx=10, ipady=6, sticky="ew")
+        tb.Label(card, text=title, font=("Helvetica", 12, "bold"), bootstyle=style).pack(anchor="w", padx=6, pady=(6, 0))
+        tb.Label(card, text=str(value), font=("Helvetica", 18, "bold")).pack(anchor="w", padx=6, pady=(2, 8))
+
+    # --- MAIN NAVIGATION (buttons) ---
+    nav_frame = tb.Frame(main_frame)
+    nav_frame.pack(fill="x", padx=30, pady=(0, 12))
+
+    # --- MAIN TABS ---
+    notebook = ttk.Notebook(main_frame)
+    notebook.pack(expand=True, fill="both", padx=30, pady=0)
+
+    # Hide tabs visually
+    style = ttk.Style()
+    style.layout('TNotebook.Tab', [])
+
+    def switch_tab(idx):
+        notebook.select(idx)
+
+    tb.Button(nav_frame, text="New appointment", bootstyle="success-outline", width=16, command=lambda: switch_tab(0)).pack(side="left", padx=8)
+    tb.Button(nav_frame, text="View appointments", bootstyle="info-outline", width=16, command=lambda: switch_tab(1)).pack(side="left", padx=8)
+    tb.Button(nav_frame, text="Cancel by client", bootstyle="danger-outline", width=20, command=lambda: switch_tab(2)).pack(side="left", padx=8)
+    tb.Button(nav_frame, text="AI Assistant", bootstyle="warning-outline", width=16, command=lambda: switch_tab(3)).pack(side="left", padx=8)
+
+    # TAB 0 – SCHEDULE
     tab_schedule = tb.Frame(notebook)
-    notebook.add(tab_schedule, text="📅 Schedule")
+    notebook.add(tab_schedule, text="📅 New appointment")
 
-    # Client name
-    tb.Label(tab_schedule, text="Client Name:", bootstyle="info")\
-        .grid(row=0, column=0, padx=15, pady=15, sticky="e")
+    tb.Label(tab_schedule, text="Client name:", bootstyle="info").grid(row=0, column=0, padx=15, pady=15, sticky="e")
     name_entry = tb.Entry(tab_schedule, width=35, bootstyle="light")
     name_entry.grid(row=0, column=1, padx=15, pady=15)
 
-    # Employee
-    tb.Label(tab_schedule, text="Employee:", bootstyle="info")\
-        .grid(row=1, column=0, padx=15, pady=15, sticky="e")
-    employee_combo = ttk.Combobox(tab_schedule, values=[],
-                                  state="readonly", width=32)
+    tb.Label(tab_schedule, text="Employee:", bootstyle="info").grid(row=1, column=0, padx=15, pady=15, sticky="e")
+    employee_combo = ttk.Combobox(tab_schedule, values=[], state="readonly", width=32)
     employee_combo.grid(row=1, column=1, padx=15, pady=15)
 
-    # Date
-    tb.Label(tab_schedule, text="Date:", bootstyle="info")\
-        .grid(row=2, column=0, padx=15, pady=15, sticky="e")
-    date_picker = DateEntry(tab_schedule, firstweekday=0,
-                            dateformat="%d/%m/%Y", bootstyle="light")
+    tb.Label(tab_schedule, text="Date:", bootstyle="info").grid(row=2, column=0, padx=15, pady=15, sticky="e")
+    date_picker = DateEntry(tab_schedule, firstweekday=0, dateformat="%d/%m/%Y", bootstyle="light")
     date_picker.grid(row=2, column=1, padx=15, pady=15)
 
-    # Time
-    tb.Label(tab_schedule, text="Time:", bootstyle="info")\
-        .grid(row=3, column=0, padx=15, pady=15, sticky="e")
+    tb.Label(tab_schedule, text="Time:", bootstyle="info").grid(row=3, column=0, padx=15, pady=15, sticky="e")
     time_values = [f"{h:02d}:{m:02d}" for h in range(8, 21) for m in (0, 30)]
-    time_combo = ttk.Combobox(tab_schedule, values=time_values,
-                              state="readonly", width=32)
+    time_combo = ttk.Combobox(tab_schedule, values=time_values, state="readonly", width=32)
     time_combo.grid(row=3, column=1, padx=15, pady=15)
 
     # Populate employee list
     employee_options = {}
-
     def load_employees():
         employee_options.clear()
         labels = []
@@ -277,87 +247,63 @@ def launch_main_app():
             employee_options[label] = emp.email
             labels.append(label)
         employee_combo["values"] = labels
-
-    # Demo employees if DB empty
+    # Demo employees if DB is empty
     if not get_employee_by_email("laura@example.com"):
-        add_employee(Employee("Laura Sánchez", "laura@example.com",
-                              "3011234567", "Dentist", ["Monday", "Tuesday"]))
+        add_employee(Employee("Laura Sanchez", "laura@example.com", "3011234567", "Dentist", ["Monday", "Tuesday"]))
     if not get_employee_by_email("carlos@example.com"):
-        add_employee(Employee("Carlos Gómez", "carlos@example.com",
-                              "3027654321", "Therapist", ["Wednesday", "Thursday"]))
+        add_employee(Employee("Carlos Gomez", "carlos@example.com", "3027654321", "Therapist", ["Wednesday", "Thursday"]))
     if not get_employee_by_email("ana@example.com"):
-        add_employee(Employee("Ana Torres", "ana@example.com",
-                              "3039876543", "Nutritionist", ["Friday"]))
-
+        add_employee(Employee("Ana Torres", "ana@example.com", "3039876543", "Nutritionist", ["Friday"]))
     load_employees()
 
-    # Schedule button
     tb.Button(
         tab_schedule,
-        text="Schedule Appointment",
+        text="Schedule appointment",
         bootstyle="success",
-        command=lambda: schedule_appointment(
-            name_entry, employee_options, employee_combo,
-            date_picker, time_combo
-        )
+        width=18,
+        command=lambda: schedule_appointment(name_entry, employee_options, employee_combo, date_picker, time_combo)
     ).grid(row=4, columnspan=2, pady=25)
 
-    # ========================================================================
-    # TAB 2 – View appointments
-    # ========================================================================
+    # TAB 1 – VIEW APPOINTMENTS
     tab_view = tb.Frame(notebook)
-    notebook.add(tab_view, text="👁 View")
+    notebook.add(tab_view, text="👁 View appointments")
 
-    tree = ttk.Treeview(tab_view, columns=("Client", "Employee", "Start",
-                                           "End", "Status"), show="headings")
-    for col, w in zip(("Client", "Employee", "Start", "End", "Status"),
-                      (150, 150, 150, 150, 100)):
+    global tree
+    tree = ttk.Treeview(tab_view, columns=("Client", "Employee", "Start", "End", "Status"), show="headings")
+    for col, w in zip(("Client", "Employee", "Start", "End", "Status"), (140, 140, 140, 140, 100)):
         tree.heading(col, text=col)
         tree.column(col, width=w)
     tree.pack(fill="both", expand=True, padx=10, pady=10)
 
     btn_frame = tb.Frame(tab_view)
     btn_frame.pack(pady=10)
-    tb.Button(btn_frame, text="🔄 Refresh", bootstyle="info",
-              command=refresh_tree).grid(row=0, column=0, padx=10)
-    tb.Button(btn_frame, text="✔️ Complete", bootstyle="success",
-              command=lambda: mark_selected(STATUS_COMPLETED))\
-        .grid(row=0, column=1, padx=10)
-    tb.Button(btn_frame, text="❌ Cancel", bootstyle="danger",
-              command=lambda: mark_selected(STATUS_CANCELLED))\
-        .grid(row=0, column=2, padx=10)
-
+    tb.Button(btn_frame, text="🔄 Refresh", bootstyle="info", command=refresh_tree).grid(row=0, column=0, padx=10)
+    tb.Button(btn_frame, text="✔️ Complete", bootstyle="success", command=lambda: mark_selected(STATUS_COMPLETED)).grid(row=0, column=1, padx=10)
+    tb.Button(btn_frame, text="❌ Cancel", bootstyle="danger", command=lambda: mark_selected(STATUS_CANCELLED)).grid(row=0, column=2, padx=10)
     refresh_tree()
 
-    # ========================================================================
-    # TAB 3 – Cancel by client
-    # ========================================================================
-    if user_role != "employee":
-        tab_cancel = tb.Frame(notebook)
-        notebook.add(tab_cancel, text="❌ Cancel by Client")
+    # TAB 2 – CANCEL BY CLIENT
+    tab_cancel = tb.Frame(notebook)
+    notebook.add(tab_cancel, text="❌ Cancel by client")
 
-        tb.Label(tab_cancel, text="Client name:", bootstyle="info")\
-            .grid(row=0, column=0, padx=15, pady=15, sticky="e")
-        name_cancel_entry = tb.Entry(tab_cancel, width=35, bootstyle="light")
-        name_cancel_entry.grid(row=0, column=1, padx=15, pady=15)
+    tb.Label(tab_cancel, text="Client name:", bootstyle="info").grid(row=0, column=0, padx=15, pady=15, sticky="e")
+    name_cancel_entry = tb.Entry(tab_cancel, width=35, bootstyle="light")
+    name_cancel_entry.grid(row=0, column=1, padx=15, pady=15)
+    tb.Button(
+        tab_cancel,
+        text="Cancel appointments",
+        bootstyle="danger",
+        command=lambda: cancel_by_client(name_cancel_entry)
+    ).grid(row=1, columnspan=2, pady=10)
 
-        tb.Button(
-            tab_cancel,
-            text="Cancel appointments",
-            bootstyle="danger",
-            command=lambda: cancel_by_client(name_cancel_entry)
-        ).grid(row=1, columnspan=2, pady=10)
-
-    if user_role == "employee":
-        notebook.hide(tab_schedule)
-
+    # TAB 3 – AI ASSISTANT
+    from smartscheduler.views.tab_ai_assistant import AIAssistantTab
+    ai_tab = AIAssistantTab(notebook)
+    notebook.add(ai_tab, text="🤖 AI Assistant")
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    if not get_user_by_username("admin"):
-        add_user("admin", "admin", "admin")
-
-    login_dialog()
+    launch_dashboard()
     root.mainloop()
