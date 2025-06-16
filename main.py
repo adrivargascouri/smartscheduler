@@ -19,6 +19,7 @@ from smartscheduler.data.database import (
     get_appointments,
     update_appointment_status,
     cancel_appointments_by_client_id,
+    get_client_by_name,
     STATUS_SCHEDULED,
     STATUS_COMPLETED,
     STATUS_CANCELLED,
@@ -123,7 +124,6 @@ def mark_selected(new_status: str):
 
 
 def cancel_by_client(name_entry):
-    from data.database import get_client_by_name
 
     client_name = name_entry.get().strip()
     if not client_name:
@@ -260,7 +260,7 @@ def launch_dashboard():
         tab_schedule,
         text="Schedule appointment",
         bootstyle="success",
-        width=18,
+        width=20,
         command=lambda: schedule_appointment(name_entry, employee_options, employee_combo, date_picker, time_combo)
     ).grid(row=4, columnspan=2, pady=25)
 

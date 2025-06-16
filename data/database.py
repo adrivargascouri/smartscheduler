@@ -83,7 +83,7 @@ def create_tables() -> None:
 def get_client_by_name(name: str) -> Optional[Client]:
     conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM clients WHERE name = ?", (name,))
+    cursor.execute("SELECT * FROM clients WHERE LOWER(name) = LOWER(?)", (name,))
     row = cursor.fetchone()
     conn.close()
 
