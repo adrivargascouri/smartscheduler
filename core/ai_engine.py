@@ -10,9 +10,10 @@ from smartscheduler.data.database import (
     get_employees,
     is_employee_available,
     add_client,
-    add_appointment,
     STATUS_SCHEDULED,
 )
+from smartscheduler.core.scheduler_utils import schedule_appointment_with_validation
+
 def normalize(text):
     """Quita acentos y convierte a minúsculas para comparar nombres correctamente."""
     if not text:
@@ -101,13 +102,13 @@ def parse_date_time(text):
                     continue
                 break
 
-    # Busca hora en formatos comunes
+    # Busca hora en formatos comunes (mejorado para 2pm, 4pm, 6am, etc.)
     time_patterns = [
-        r'(\d{1,2}):(\d{2})',     # 14:30
-        r'(\d{1,2}) ?pm',         # 2pm
-        r'(\d{1,2}) ?am',         # 10am
-        r'at (\d{1,2})',          # at 2
-        r'(\d{1,2}) o\'clock',    # 2 o'clock
+        r'\b(\d{1,2})\s*pm\b',      # 2pm, 2 pm
+        r'\b(\d{1,2})\s*am\b',      # 10am, 10 am
+        r'(\d{1,2}):(\d{2})',       # 14:30
+        r'at (\d{1,2})',            # at 2
+        r'(\d{1,2}) o\'clock',      # 2 o'clock
     ]
     for pattern in time_patterns:
         match = re.search(pattern, text_lower)
@@ -180,15 +181,18 @@ def check_availability(employee, date, time):
 
 def create_appointment(client_name, employee, date, time):
     try:
+        # Asegura que el cliente exista
         client = Client(name=client_name)
         add_client(client)
         date_obj = date if isinstance(date, datetime) else datetime.strptime(str(date), "%Y-%m-%d").date()
         time_obj = datetime.strptime(time, "%H:%M").time()
         start_time = datetime.combine(date_obj, time_obj)
         end_time = start_time + timedelta(hours=1)
-        appointment = Appointment(client, employee, start_time, end_time, STATUS_SCHEDULED)
-        add_appointment(appointment)
-        return True, f"Appointment scheduled for {client_name} with {employee.name} on {start_time.strftime('%d/%m/%Y at %H:%M')}"
+        # Usa la validación completa
+        success, msg = schedule_appointment_with_validation(
+            client_name, employee.name, start_time, end_time
+        )
+        return success, msg
     except Exception as e:
         return False, f"Error creating appointment: {str(e)}"
 
@@ -247,7 +251,9 @@ def process_conversation(user_message):
     )
     if not available:
         date_str = conversation_state['date'].strftime('%d/%m/%Y')
-        return f"Sorry, {conversation_state['employee'].name} is not available on {date_str} at {conversation_state['time']}. Would you like to try another time?"
+        # Solo borra la hora, NO la fecha, para que no vuelva a pedir el día
+        conversation_state["time"] = None
+        return f"❌ {conversation_state['employee'].name} is not available on {date_str} at {conversation_state['time']}. Please select another time."
 
     success, msg = create_appointment(
         conversation_state["client_name"],
@@ -255,11 +261,22 @@ def process_conversation(user_message):
         conversation_state["date"],
         conversation_state["time"],
     )
-    reset_state()
-    if success:
-        return f"✅ {msg} The appointment has been confirmed!"
-    else:
+    if not success:
+        # Si el error es solo por la hora, NO borres la fecha
+        if "does not work on" in msg or "only works on" in msg:
+            conversation_state["time"] = None
+        elif "already has another appointment" in msg:
+            conversation_state["time"] = None
+        else:
+            # Si el error es de fecha, solo entonces borra fecha y hora
+            conversation_state["date"] = None
+            conversation_state["time"] = None
         return f"❌ {msg}"
+
+    # Solo resetea todo si se agenda exitosamente
+    reset_state()
+    return f"✅ {msg} The appointment has been confirmed!"
+
 def welcome_message():
     emp_list = ", ".join(get_employees_info())
     return (

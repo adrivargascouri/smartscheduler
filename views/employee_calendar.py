@@ -75,6 +75,10 @@ def show_employee_calendar_window(root):
                 end_dt = datetime.strptime(ap[4], "%Y-%m-%d %H:%M:%S")
                 if week_start <= start_dt.date() <= week_start + timedelta(days=6):
                     citas.append((start_dt, end_dt))
+        print(f"Citas para {employee.name} en semana que inicia {week_start}:")
+        for c in citas:
+            print(f"{c[0]} - {c[1]}")
+
         for i, day in enumerate(DAYS):
             this_date = week_days[i]
             blocks = employee.availability.get(day, [])
@@ -99,8 +103,9 @@ def show_employee_calendar_window(root):
                 ocupado = block_is_occupied(block_time, siguiente, citas)
                 #print(f"{day} {hour} - disp: {disp}, ocupado: {ocupado}")
                 if ocupado:
+                    print(f"Bloque ocupado detectado: {day} {hour} ({block_time} - {siguiente})")
                     color = "danger"
-                    text= ""
+                    text= "X"
                     state = "disabled"
                 elif disp:
                     color = "success"
@@ -123,10 +128,10 @@ def show_employee_calendar_window(root):
     # Selector empleado
     frame_top = tb.Frame(win)
     frame_top.pack(pady=10)
-    ttk.Label(frame_top, text="Empleado:").pack(side="left", padx=5)
+    ttk.Label(frame_top, text="Employee:").pack(side="left", padx=5)
     emp_cb = ttk.Combobox(frame_top, textvariable=sel_emp, values=emp_names, state="readonly", width=32)
     emp_cb.pack(side="left", padx=5)
-    ttk.Label(frame_top, text="Semana:").pack(side="left", padx=5)
+    ttk.Label(frame_top, text="Week:").pack(side="left", padx=5)
     week_entry = ttk.Entry(frame_top, textvariable=sel_week, width=12)
     week_entry.pack(side="left", padx=5)
     def prev_week():
@@ -141,7 +146,7 @@ def show_employee_calendar_window(root):
         refresh_calendar()
     tb.Button(frame_top, text="⏪", bootstyle="secondary", command=prev_week).pack(side="left", padx=5)
     tb.Button(frame_top, text="⏩", bootstyle="secondary", command=next_week).pack(side="left", padx=5)
-    tb.Button(frame_top, text="Mostrar", bootstyle="primary", command=refresh_calendar).pack(side="left", padx=10)
+    tb.Button(frame_top, text="Show", bootstyle="primary", command=refresh_calendar).pack(side="left", padx=10)
 
     # Calendario
     frame_calendar = tb.Frame(win)

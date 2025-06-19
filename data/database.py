@@ -160,6 +160,32 @@ def get_employee_by_email(email: str) -> Optional[Employee]:
     emp.id = row[0]
     return emp
 
+def get_employee_by_name(name: str) -> Optional[Employee]:
+    """Get an employee by their name."""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM employees WHERE LOWER(name) = LOWER(?)", (name,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    availability_raw = row[5] or "{}"
+    try:
+        availability = json.loads(availability_raw)
+    except Exception:
+        availability = {}
+    emp = Employee(
+        name=row[1],
+        email=row[2],
+        phone=row[3],
+        role=row[4],
+        availability=availability,
+    )
+    emp.id = row[0]
+    return emp
+
 
 def add_employee(employee: Employee) -> None:
     """
