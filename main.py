@@ -4,6 +4,7 @@ from ttkbootstrap.widgets import DateEntry
 from tkinter import ttk, messagebox, PhotoImage
 from datetime import datetime, timedelta
 import tkinter as tk
+from smartscheduler.views.employee_calendar import show_employee_calendar_window
 
 # ---------------------------------------------------------------------------
 # Local imports
@@ -300,6 +301,15 @@ def launch_dashboard():
     from smartscheduler.views.tab_ai_assistant import AIAssistantTab
     ai_tab = AIAssistantTab(notebook)
     notebook.add(ai_tab, text="🤖 AI Assistant")
+    
+    #TAB 4 - EMPLOYEE CALENDAR 
+    tb.Button(
+    nav_frame,  # O el frame donde tengas los demás botones
+    text="Employees calendar",
+    bootstyle="info-outline",
+    width=24,
+    command=lambda: show_employee_calendar_window(root)
+).pack(side="left", padx=8)
 
 # ---------------------------------------------------------------------------
 # Entry point

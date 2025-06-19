@@ -1,24 +1,25 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Dict, List
 
 @dataclass
 class Person:
-    def __init__(self, name, email, phone):
-        self.name = name
-        self.email = email
-        self.phone = phone
+    name: str
+    email: str
+    phone: str
 
     def __str__(self):
         return f"{self.name} ({self.email})"
-
+    
+@dataclass
 class Client(Person):
-    def __init__(self, name, email="", phone=""):
-        super().__init__(name, email, phone)
+    email: str = ""
+    phone: str = ""
 
+@dataclass
 class Employee(Person):
-    def __init__(self, name, email, phone, role, availability):
-        super().__init__(name, email, phone)
-        self.role = role
-        self.availability = availability  # List of available days (e.g., ["Monday", "Tuesday"])
+    role : str
+    availability: Dict[str, List[str]] = field(default_factory=dict)
+    id: int = field(default=None, init=False)
 
     def __str__(self):
         return f"{self.name} - {self.role} ({self.email})"

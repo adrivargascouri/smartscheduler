@@ -1,4 +1,5 @@
 import sqlite3
+import json
 from datetime import datetime
 from typing import List, Optional
 
@@ -144,13 +145,17 @@ def get_employee_by_email(email: str) -> Optional[Employee]:
     if not row:
         return None
 
-    availability_raw = row[5] or ""
+    availability_raw = row[5] or "{}"
+    try:
+        availability = json.loads(availability_raw)
+    except Exception:
+        availability = {}
     emp = Employee(
         name=row[1],
         email=row[2],
         phone=row[3],
         role=row[4],
-        availability=availability_raw.split(",") if availability_raw else [],
+        availability=availability,
     )
     emp.id = row[0]
     return emp
@@ -176,7 +181,7 @@ def add_employee(employee: Employee) -> None:
             employee.email,
             employee.phone,
             employee.role,
-            ",".join(employee.availability),
+            json.dumps(employee.availability),
         ),
     )
     employee.id = cursor.lastrowid
@@ -193,13 +198,19 @@ def get_employees() -> List[Employee]:
 
     employees: List[Employee] = []
     for row in rows:
-        availability_raw = row[5] or ""
+        availability_raw = row[5] or "{}"
+        try:
+            availability= json.loads(availability_raw)
+            if not isinstance(availability,dict):
+                availability = {}
+        except Exception:
+            availability = {}
         emp = Employee(
             name=row[1],
             email=row[2],
             phone=row[3],
             role=row[4],
-            availability=availability_raw.split(",") if availability_raw else [],
+            availability=availability,
         )
         emp.id = row[0]
         employees.append(emp)
