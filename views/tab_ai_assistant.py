@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 import re
 from datetime import datetime, timedelta
-from smartscheduler.data.database import get_client_by_name, cancel_appointments_by_client_id
+from smartscheduler.data.database import get_client_by_name, cancel_appointments_by_client_id, cancel_appointment_by_id, get_active_appointments_by_client_id
 from smartscheduler.core.ai_engine import chat_completion
 from smartscheduler.core.scheduler_utils import schedule_appointment_with_validation
 
@@ -16,6 +16,9 @@ class AIAssistantTab(ttk.Frame):
         self.history = []
         self.pending_cancellation = None
         self.awaiting_cancellation_client = False
+
+        self.awaiting_cancellation_which = False
+        self.citas_a_cancelar = []
 
         self.chat_display = tk.Text(self, wrap="word", state="disabled", height=25)
         self.chat_display.pack(padx=10, pady=10, fill="both", expand=True)
@@ -39,22 +42,117 @@ class AIAssistantTab(ttk.Frame):
         self.append_to_chat("You", user_input)
         self.history.append(("user", user_input))
 
-        if self.awaiting_cancellation_client:
-            client_name = user_input
-            reply = f"Are you sure you want to cancel all appointments for {client_name}? (Reply 'yes' to confirm)"
-            self.pending_cancellation = client_name
-            self.awaiting_cancellation_client = False
+         # --- PASO 1: Si estamos esperando que el usuario elija cuál cita cancelar ---
+        if self.awaiting_cancellation_which:
+            try:
+                idx = int(user_input.strip()) - 1
+                cita = self.citas_a_cancelar[idx]
+                affected = cancel_appointment_by_id(cita[0])  # cita[0] es el id
+                if affected:
+                    reply = f"Appointment cancelled: {cita[1]} a {cita[2]} with employee ID {cita[3]}"
+                else:
+                    reply = "Could not cancel the appointment, perhaps is already cancelled before ."
+            except Exception:
+                reply = "Invalid selection. Please, insert the number of the appointment to be cancelled."
+                self.history.append(("assistant", reply))
+                self.append_to_chat("AI", reply)
+                return
+            self.awaiting_cancellation_which = False
+            self.citas_a_cancelar = []
             self.history.append(("assistant", reply))
             self.append_to_chat("AI", reply)
             return
-        
-    # --- Nuevo bloque para cancelar citas ---
+
+        # --- PASO 2: Si el usuario pide cancelar cita ---
+        if "cancel" in user_input.lower() and "appointment" in user_input.lower():
+            lowered = user_input.lower()
+            # Extrae el nombre del cliente después de la palabra "for"
+            if "for" in lowered:
+                idx = lowered.find("for") + 4
+                client_name = user_input[idx:].strip()
+            else:
+                client_name = ""
+            if not client_name:
+                reply = "Which client do you want to cancel an appointment for? Write the name."
+                self.awaiting_cancellation_client = True
+                self.history.append(("assistant", reply))
+                self.append_to_chat("AI", reply)
+                return
+
+            client = get_client_by_name(client_name)
+            if not client:
+                reply = f"Client not found '{client_name}'."
+                self.history.append(("assistant", reply))
+                self.append_to_chat("AI", reply)
+                return
+
+            citas = get_active_appointments_by_client_id(client.id)
+            if not citas:
+                reply = f"{client_name} does not have appointments to cancel."
+            elif len(citas) == 1:
+                affected = cancel_appointment_by_id(citas[0][0])
+                if affected:
+                    reply = f"appointment cancelled: {citas[0][1]} a {citas[0][2]} with employee ID {citas[0][3]}"
+                else:
+                    reply = "Your appointment could not be cancelled, perhaps it was already cancelled before."
+            else:
+                listado = "\n".join(
+                    [f"{i+1}. {c[1]} a {c[2]} with employee ID {c[3]}" for i, c in enumerate(citas)]
+                )
+                reply = (
+                    f"{client_name} has several active appointments:\n{listado}\n"
+                    "Please, insert the number of the appointment you want to cancel."
+                )
+                self.awaiting_cancellation_which = True
+                self.citas_a_cancelar = citas
+            self.history.append(("assistant", reply))
+            self.append_to_chat("AI", reply)
+            return
+
+        # --- PASO 3: Si está esperando que el usuario escriba el cliente ---
+        if self.awaiting_cancellation_client:
+            client_name = user_input
+            client = get_client_by_name(client_name)
+            if not client:
+                reply = f"Client was not found '{client_name}'."
+                self.awaiting_cancellation_client = False
+                self.history.append(("assistant", reply))
+                self.append_to_chat("AI", reply)
+                return
+            citas = get_active_appointments_by_client_id(client.id)
+            if not citas:
+                reply = f"{client_name} have no appointments to cancel."
+                self.awaiting_cancellation_client = False
+            elif len(citas) == 1:
+                affected = cancel_appointment_by_id(citas[0][0])
+                if affected:
+                    reply = f"Appointment cancelled: {citas[0][1]} a {citas[0][2]} with employee ID {citas[0][3]}"
+                else:
+                    reply = "Your appointment could not be cancelled, perhaps it was already cancelled previously."
+                self.awaiting_cancellation_client = False
+            else:
+                listado = "\n".join(
+                    [f"{i+1}. {c[1]} a {c[2]} with employee ID {c[3]}" for i, c in enumerate(citas)]
+                )
+                reply = (
+                    f"{client_name} have several active appointments:\n{listado}\n"
+                    "Please, insert the number of the appointment you want to cancel"
+                )
+                self.awaiting_cancellation_which = True
+                self.citas_a_cancelar = citas
+                self.awaiting_cancellation_client = False
+            self.history.append(("assistant", reply))
+            self.append_to_chat("AI", reply)
+            return
+
+        # --- AGENDADOR ORIGINAL ---
         schedule_reply = self.try_schedule_from_input(user_input)
         if schedule_reply:
             self.history.append(("assistant", schedule_reply))
             self.append_to_chat("AI", schedule_reply)
             return
 
+        # --- CANCELACIÓN MASIVA (MANTENIDA POR SI QUIERES EL FLUJO ANTIGUO) ---
         if self.pending_cancellation:
             if user_input.lower() in ("si", "yes", "confirm", "ok"):
                 client_name = self.pending_cancellation
@@ -72,7 +170,8 @@ class AIAssistantTab(ttk.Frame):
             self.append_to_chat("AI", reply)
             return
 
-        if "cancel" in user_input.lower() and "appointment" in user_input.lower():
+        # --- FLUJO MASIVO OBSOLETO (PUEDES ELIMINAR SI YA NO QUIERES LA OPCIÓN) ---
+        if "cancel all" in user_input.lower() and "appointments" in user_input.lower():
             lowered = user_input.lower()
             if "for" in lowered:
                 idx = lowered.find("for") + 4
@@ -90,6 +189,7 @@ class AIAssistantTab(ttk.Frame):
             self.append_to_chat("AI", reply)
             return
 
+        # --- CONTINÚA FLUJO NORMAL DEL ASSISTANT ---
         self.chat_display.config(state="normal")
         self.chat_display.insert(tk.END, "AI typing...\n")
         self.chat_display.config(state="disabled")
@@ -141,4 +241,3 @@ class AIAssistantTab(ttk.Frame):
             return msg
 
         return None
-

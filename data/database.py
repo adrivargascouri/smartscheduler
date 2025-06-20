@@ -295,6 +295,21 @@ def cancel_appointments_by_client_id(client_id: int) -> int:
     conn.close()
     return affected
 
+def cancel_appointment_by_id(appointment_id: int) -> int:
+    """
+    Mark a single appointment as CANCELLED.
+    Returns the number of affected rows (1 if cancelled, 0 if not found or already cancelled).
+    """
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE appointments SET status = ? WHERE id = ? AND status = ?",
+        (STATUS_CANCELLED, appointment_id, STATUS_SCHEDULED),
+    )
+    conn.commit()
+    affected = cursor.rowcount
+    conn.close()
+    return affected
 
 def get_appointments():
     """Return a list of rows with ALL appointments (joined with client / employee names)."""
@@ -315,6 +330,22 @@ def get_appointments():
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+def get_active_appointments_by_client_id(client_id: int):
+    """
+    Returns a list of scheduled (no canceladas ni completadas) appointments for a client.
+    Each row: (id, start_time, end_time, employee_id)
+    """
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, start_time, end_time, employee_id FROM appointments WHERE client_id = ? AND status = ?",
+        (client_id, STATUS_SCHEDULED)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
 
 
 def is_employee_available(employee_id: int, start_time: datetime, end_time: datetime) -> bool:
