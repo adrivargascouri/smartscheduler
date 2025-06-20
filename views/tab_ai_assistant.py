@@ -30,7 +30,7 @@ class AIAssistantTab(ttk.Frame):
         self.entry.pack(side="left", fill="x", expand=True)
         self.entry.bind("<Return>", self.send_message)
 
-        send_button = ttk.Button(entry_frame, text="Enviar", command=self.send_message)
+        send_button = ttk.Button(entry_frame, text="Send", command=self.send_message)
         send_button.pack(side="right", padx=5)
 
     def send_message(self, event=None):
@@ -42,7 +42,7 @@ class AIAssistantTab(ttk.Frame):
         self.append_to_chat("You", user_input)
         self.history.append(("user", user_input))
 
-         # --- PASO 1: Si estamos esperando que el usuario elija cuál cita cancelar ---
+         # --- STEP 1: If we are waiting for the user to choose which appointment to cancel ---
         if self.awaiting_cancellation_which:
             try:
                 idx = int(user_input.strip()) - 1
@@ -63,10 +63,10 @@ class AIAssistantTab(ttk.Frame):
             self.append_to_chat("AI", reply)
             return
 
-        # --- PASO 2: Si el usuario pide cancelar cita ---
+        # --- STEP 2: If user want to cancel ---
         if "cancel" in user_input.lower() and "appointment" in user_input.lower():
             lowered = user_input.lower()
-            # Extrae el nombre del cliente después de la palabra "for"
+            # Extracts the customer's name after the word for
             if "for" in lowered:
                 idx = lowered.find("for") + 4
                 client_name = user_input[idx:].strip()
@@ -109,7 +109,7 @@ class AIAssistantTab(ttk.Frame):
             self.append_to_chat("AI", reply)
             return
 
-        # --- PASO 3: Si está esperando que el usuario escriba el cliente ---
+        # --- STEP 3: If waiting for the user to write ---
         if self.awaiting_cancellation_client:
             client_name = user_input
             client = get_client_by_name(client_name)
@@ -145,14 +145,14 @@ class AIAssistantTab(ttk.Frame):
             self.append_to_chat("AI", reply)
             return
 
-        # --- AGENDADOR ORIGINAL ---
+        # --- ORIGINAL SCHEDULE ---
         schedule_reply = self.try_schedule_from_input(user_input)
         if schedule_reply:
             self.history.append(("assistant", schedule_reply))
             self.append_to_chat("AI", schedule_reply)
             return
 
-        # --- CANCELACIÓN MASIVA (MANTENIDA POR SI QUIERES EL FLUJO ANTIGUO) ---
+        # --- MASS CANCELATION ---
         if self.pending_cancellation:
             if user_input.lower() in ("si", "yes", "confirm", "ok"):
                 client_name = self.pending_cancellation
@@ -170,7 +170,7 @@ class AIAssistantTab(ttk.Frame):
             self.append_to_chat("AI", reply)
             return
 
-        # --- FLUJO MASIVO OBSOLETO (PUEDES ELIMINAR SI YA NO QUIERES LA OPCIÓN) ---
+        # --- Deprecated bulk flow  ---
         if "cancel all" in user_input.lower() and "appointments" in user_input.lower():
             lowered = user_input.lower()
             if "for" in lowered:
@@ -189,7 +189,7 @@ class AIAssistantTab(ttk.Frame):
             self.append_to_chat("AI", reply)
             return
 
-        # --- CONTINÚA FLUJO NORMAL DEL ASSISTANT ---
+        # --- CONTINUES THE NORMAL FLOW OF THE ASSISTANT ---
         self.chat_display.config(state="normal")
         self.chat_display.insert(tk.END, "AI typing...\n")
         self.chat_display.config(state="disabled")
@@ -213,7 +213,7 @@ class AIAssistantTab(ttk.Frame):
 
     def try_schedule_from_input(self, user_input):
         """
-        Detecta y agenda citas a partir de mensajes tipo:
+        Detect and schedule appointments for messages like:
         'Schedule appointment with Laura Sanchez on 27/06/2025 at 16:00 for Adriana Vargas'
         """
         m = re.search(
@@ -225,7 +225,8 @@ class AIAssistantTab(ttk.Frame):
             time_str = m.group(3).strip()
             am_pm = m.group(4)
             client_name = m.group(5).strip() if m.group(5) else "Unknown Client"
-            # Procesar fecha y hora
+
+            # Process date and time
             try:
                 start_date = datetime.strptime(date_str, "%d/%m/%Y")
                 if am_pm:

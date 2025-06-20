@@ -30,7 +30,7 @@ def schedule_appointment_with_validation(client_name, employee_name, start_time,
     - Que la cita está dentro del horario laboral del empleado
     - Que no hay solapamientos
     """
-    # 1. Verifica la existencia de cliente y empleado
+    # 1. Verify the existent of an employee or client 
     client = get_client_by_name(client_name)
     if not client:
         return False, f"No client found with name '{client_name}'."
@@ -39,7 +39,7 @@ def schedule_appointment_with_validation(client_name, employee_name, start_time,
     if not employee:
         return False, f"No employee found with name '{employee_name}'."
 
-    # 2. Chequea disponibilidad (día y horario)
+    # 2. Check availability (date and time)
     if not is_time_in_employee_availability(employee, start_time, end_time):
         day_of_week = start_time.strftime("%A")
         intervals = employee.availability.get(day_of_week, [])
@@ -49,11 +49,11 @@ def schedule_appointment_with_validation(client_name, employee_name, start_time,
         else:
             return (False, f"{employee.name} does not work on {day_of_week}s. Please select another day.")
 
-    # 3. Chequea solapamientos
+    # 3. Check overlaps
     if not is_employee_available(employee.id, start_time, end_time):
         return False, f"{employee.name} already has another appointment at that time."
 
-    # 4. Si todo bien, agenda la cita
+    # 4. If everything good, schedule appointment
     appointment = Appointment(
         client=client,
         employee=employee,

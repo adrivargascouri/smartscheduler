@@ -7,7 +7,7 @@ DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sun
 HOUR_BLOCKS = [f"{h:02d}:00" for h in range(8, 21)]  # 08:00 a 20:00
 
 def parse_block(block: str):
-    """Devuelve tuplas (hora_inicio, hora_fin) de un string '09:00-12:00'."""
+    """returns tuples (hora_inicio, hora_fin) de un string '09:00-12:00'."""
     try:
         start, end = block.split("-")
         return datetime.strptime(start, "%H:%M").time(), datetime.strptime(end, "%H:%M").time()
@@ -15,25 +15,25 @@ def parse_block(block: str):
         return None, None
 
 def block_is_occupied(block_start, block_end, citas):
-    """True si hay una cita que se solapa con este bloque."""
+    """True if an appointment overlaps with a block."""
     for cita_start, cita_end in citas:
         if (cita_start < block_end and cita_end > block_start):
             return True
     return False
 
 def show_employee_calendar_window(root):
-    # Ventana principal
+    # Main window
     win = tb.Toplevel(root)
-    win.title("Calendario de empleados")
+    win.title("Employee Calendar")
     win.geometry("950x600")
 
-    # Selección de empleado
+    # Employee selection
     employees = get_employees()
     emp_names = [f"{e.name} ({e.email})" for e in employees]
     sel_emp = tb.StringVar(value=emp_names[0] if emp_names else "")
     sel_week = tb.StringVar()
 
-    # Semana actual (lunes)
+    # Current week (monday)
     today = datetime.now().date()
     monday = today - timedelta(days=today.weekday())
     sel_week.set(monday.strftime("%Y-%m-%d"))
@@ -55,17 +55,17 @@ def show_employee_calendar_window(root):
             return
         week_start = datetime.strptime(sel_week.get(), "%Y-%m-%d").date()
         week_days = [week_start + timedelta(days=i) for i in range(7)]
-        # Título días
+        # title days
         for i, day in enumerate(DAYS):
             date_str = week_days[i].strftime("%d/%m")
             l = ttk.Label(frame_calendar, text=f"{day}\n{date_str}", anchor="center")
             l.grid(row=0, column=i+1, padx=2, pady=2)
-        # Horas
+        # Time
         for j, hour in enumerate(HOUR_BLOCKS):
             l = ttk.Label(frame_calendar, text=hour, anchor="center")
             l.grid(row=j+1, column=0, padx=2, pady=2)
-        # Celdas: disponibilidad
-        # Consigue citas de ese empleado esa semana
+        # Cells: availability
+        # Find appointments of that employee
         citas = []
         for ap in get_appointments():
             # ap: (id, client_name, employee_name, start, end, status)
@@ -82,7 +82,7 @@ def show_employee_calendar_window(root):
         for i, day in enumerate(DAYS):
             this_date = week_days[i]
             blocks = employee.availability.get(day, [])
-            # Lista de intervalos reales de disponibilidad para ese día
+            # List of actual availability intervals for that day 
             available_intervals = []
             for block in blocks:
                 h_ini, h_fin = parse_block(block)
@@ -93,15 +93,14 @@ def show_employee_calendar_window(root):
                 siguiente = block_time + timedelta(hours=1)
                 block_start_time = block_time.time()
                 block_end_time = siguiente.time()
-                # ¿Está este bloque dentro de la disponibilidad?
+                # Is this block available?
                 disp = False
                 for h_ini, h_fin in available_intervals:
-                    # El bloque debe estar completamente contenido en el intervalo de disponibilidad
+                    # The block must be fully contained within the availability interval
                     if h_ini <= block_start_time < h_fin and block_end_time <= h_fin:
                         disp = True
                         break
                 ocupado = block_is_occupied(block_time, siguiente, citas)
-                #print(f"{day} {hour} - disp: {disp}, ocupado: {ocupado}")
                 if ocupado:
                     print(f"Bloque ocupado detectado: {day} {hour} ({block_time} - {siguiente})")
                     color = "danger"
@@ -125,7 +124,7 @@ def show_employee_calendar_window(root):
                 )
                 btn.grid(row=j+1, column=i+1, padx=1, pady=1)
 
-    # Selector empleado
+    # employee selector
     frame_top = tb.Frame(win)
     frame_top.pack(pady=10)
     ttk.Label(frame_top, text="Employee:").pack(side="left", padx=5)
@@ -148,7 +147,7 @@ def show_employee_calendar_window(root):
     tb.Button(frame_top, text="⏩", bootstyle="secondary", command=next_week).pack(side="left", padx=5)
     tb.Button(frame_top, text="Show", bootstyle="primary", command=refresh_calendar).pack(side="left", padx=10)
 
-    # Calendario
+    # Calendar
     frame_calendar = tb.Frame(win)
     frame_calendar.pack(padx=10, pady=10, fill="both", expand=True)
 

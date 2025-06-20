@@ -181,7 +181,7 @@ def export_appoint_selected():
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(calendar.serialize())
         messagebox.showinfo("Successful export", f"Appointments exported to {filepath}")
-        
+
 def mark_selected(new_status: str):
     selected_iid = tree.focus()
     if not selected_iid:
@@ -311,7 +311,7 @@ def launch_dashboard():
     
     #TAB 2 - EMPLOYEE CALENDAR 
     tb.Button(
-    nav_frame,  # O el frame donde tengas los demás botones
+    nav_frame,  
     text="Employees calendar",
     bootstyle="info-outline",
     width=24,
@@ -319,7 +319,7 @@ def launch_dashboard():
 ).pack(side="left", padx=8)
     
 def show_welcome():
-    root.configure(bg="#e7f0fd")  # Fondo pastel suave
+    root.configure(bg="#e7f0fd")  
 
     welcome_frame = tb.Frame(root, bootstyle="light")
     welcome_frame.pack(expand=True, fill="both")
@@ -331,11 +331,11 @@ def show_welcome():
     try:
         img = PhotoImage(file="calendar.png")
         tk.Label(container, image=img, bg="#e7f0fd").pack(pady=(0, 18))
-        container.image = img  # Necesario para que la imagen no se borre
+        container.image = img 
     except Exception:
         pass
 
-    # Título animado tipo máquina de escribir
+    # ANIMATED TITLE
     title_text = "¡Welcome to Smartscheduler!"
     title_label = tb.Label(
         container,
@@ -346,13 +346,12 @@ def show_welcome():
     )
     title_label.pack(pady=(0, 8))
 
-    # Efecto máquina de escribir
+    # EFECT TYPEWRITER
     def type_text(text, label, idx=0):
         if idx <= len(text):
             label.config(text=text[:idx])
             container.after(40, lambda: type_text(text, label, idx+1))
 
-    # Subtítulo y botón, inicialmente ocultos
     subtitle_label = tb.Label(
         container,
         text="Manage your appointments easily and quickly",
@@ -374,7 +373,7 @@ def show_welcome():
         command=enter
     )
 
-    # Animación de aparición escalonada
+    # FADE-IN ANIMATION
     def show_subtitle():
         subtitle_label.pack(pady=(0, 25))
         container.after(300, show_button)
@@ -383,7 +382,7 @@ def show_welcome():
         btn_entrar.pack()
         container.after(200, show_phrase)
 
-    # Frase motivacional
+    # motivational frase
     phrase_label = tb.Label(
         container,
         text="Ready to boost your productivity? 🎉",
@@ -394,7 +393,7 @@ def show_welcome():
     def show_phrase():
         phrase_label.pack(pady=(20, 0))
 
-    # Inicia animación
+    # Start animation
     container.after(300, lambda: type_text(title_text, title_label))
     container.after(1300, show_subtitle)
 
