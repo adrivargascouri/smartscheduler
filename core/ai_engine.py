@@ -15,7 +15,9 @@ from smartscheduler.data.database import (
 from smartscheduler.core.scheduler_utils import schedule_appointment_with_validation
 
 def normalize(text):
-    """Quita acentos y convierte a minúsculas para comparar nombres correctamente."""
+    """
+    Remove accents and convert to lowercase for name comparison.
+    """
     if not text:
         return ""
     return ''.join(
@@ -23,16 +25,21 @@ def normalize(text):
         if unicodedata.category(c) != 'Mn'
     ).lower()
 
-# Memoria conversacional simple (para un usuario)
+# ---------------------------------------------------------------------------
+# Simple conversational memory (for a single user)
+# ---------------------------------------------------------------------------
 conversation_state = {
     "employee": None,
     "date": None,
     "time": None,
     "client_name": None,
-    "last_step": None,  # Para saber qué le falta pedir al usuario
+    "last_step": None,  # To know what info is missing from the user
 }
 
 def reset_state():
+    """
+    Reset the conversation state to initial values.
+    """
     global conversation_state
     conversation_state = {
         "employee": None,
@@ -43,29 +50,31 @@ def reset_state():
     }
 
 def parse_date_time(text):
-    """Extract date and time from text"""
+    """
+    Extract date and time from text using regex and keywords.
+    Returns (date, time) as (datetime.date, str) or (None, None).
+    """
     text_lower = text.lower()
     target_date = None
     target_time = None
 
-    # Palabras clave para fechas relativas
+    # Relative date keywords
     patterns = {
         'day after tomorrow': datetime.now() + timedelta(days=2),
         'tomorrow': datetime.now() + timedelta(days=1),
         'today': datetime.now(),
         'next week': datetime.now() + timedelta(days=7),
-        # Agrega más reglas si lo deseas
     }
     for word, date_obj in patterns.items():
         if word in text_lower:
             target_date = date_obj.date()
             break
 
-    # Fechas explícitas tipo "friday 20", "15/06", "junio 15"
+    # Explicit date patterns (e.g., "15/06/2025", "june 15")
     date_patterns = [
         r'(\d{1,2})/(\d{1,2})/(\d{4})',   # 15/06/2025
         r'(\d{1,2})/(\d{1,2})',           # 15/06
-        r'friday (\d{1,2})',              # friday 20
+        r'friday (\d{1,2})',
         r'saturday (\d{1,2})',
         r'sunday (\d{1,2})',
         r'monday (\d{1,2})',
@@ -94,7 +103,7 @@ def parse_date_time(text):
                         day = match.group(1)
                         target_date = datetime(now.year, 7, int(day)).date()
                     else:
-                        # Día de la semana y número
+                        # Day of week and number
                         day = int(match.group(1))
                         month = now.month
                         target_date = datetime(now.year, month, day).date()
@@ -102,7 +111,7 @@ def parse_date_time(text):
                     continue
                 break
 
-    # Busca hora en formatos comunes (mejorado para 2pm, 4pm, 6am, etc.)
+    # Time patterns (e.g., "2pm", "14:30")
     time_patterns = [
         r'\b(\d{1,2})\s*pm\b',      # 2pm, 2 pm
         r'\b(\d{1,2})\s*am\b',      # 10am, 10 am
@@ -128,7 +137,7 @@ def parse_date_time(text):
                     target_time = f"{int(match.group(1)):02d}:{match.group(2)}"
                 else:
                     hour = int(match.group(1))
-                    # Asume PM para horas laborales típicas
+                    # Assume PM for typical working hours
                     if 8 <= hour <= 12:
                         target_time = f"{hour:02d}:00"
                     elif 1 <= hour <= 8:
@@ -140,8 +149,10 @@ def parse_date_time(text):
     return target_date, target_time
 
 def extract_client_name(text):
-    """Extrae el nombre del cliente del texto"""
-    # Busca patrones comunes
+    """
+    Extract the client's name from the text using common patterns.
+    Returns the name as a string or None.
+    """
     patterns = [
         r'for ([A-Za-záéíóúñÁÉÍÓÚÑ]+ [A-Za-záéíóúñÁÉÍÓÚÑ]+)',     # for John Smith
         r'client ([A-Za-záéíóúñÁÉÍÓÚÑ]+ [A-Za-záéíóúñÁÉÍÓÚÑ]+)',  # client John Smith
@@ -152,9 +163,9 @@ def extract_client_name(text):
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            return match.group(1).title()  # Normaliza mayúsculas
+            return match.group(1).title()  # Normalize capitalization
 
-    # Si el usuario solo escribe dos palabras, tómalo como nombre
+    # If user writes only two words, treat as name
     words = text.strip().split()
     if len(words) == 2 and all(word.isalpha() for word in words):
         return text.title()
@@ -162,6 +173,10 @@ def extract_client_name(text):
     return None
 
 def find_employee_in_text(text):
+    """
+    Find an employee mentioned in the text by name (accent/case-insensitive).
+    Returns an Employee object or None.
+    """
     text_norm = normalize(text)
     for emp in get_employees():
         emp_norm = normalize(emp.name)
@@ -170,6 +185,10 @@ def find_employee_in_text(text):
     return None
 
 def check_availability(employee, date, time):
+    """
+    Check if the employee is available at the given date and time.
+    Returns True if available, False otherwise.
+    """
     try:
         date_obj = date if isinstance(date, datetime) else datetime.strptime(str(date), "%Y-%m-%d").date()
         time_obj = datetime.strptime(time, "%H:%M").time()
@@ -180,15 +199,19 @@ def check_availability(employee, date, time):
         return False
 
 def create_appointment(client_name, employee, date, time):
+    """
+    Create an appointment for the client with the employee at the given date and time.
+    Returns (success: bool, message: str).
+    """
     try:
-        # Asegura que el cliente exista
+        # Ensure client exists
         client = Client(name=client_name)
         add_client(client)
         date_obj = date if isinstance(date, datetime) else datetime.strptime(str(date), "%Y-%m-%d").date()
         time_obj = datetime.strptime(time, "%H:%M").time()
         start_time = datetime.combine(date_obj, time_obj)
         end_time = start_time + timedelta(hours=1)
-        # Usa la validación completa
+        # Use full validation
         success, msg = schedule_appointment_with_validation(
             client_name, employee.name, start_time, end_time
         )
@@ -197,18 +220,25 @@ def create_appointment(client_name, employee, date, time):
         return False, f"Error creating appointment: {str(e)}"
 
 def get_employees_info():
+    """
+    Return a list of employee names and roles for display.
+    """
     employees = get_employees()
     return [f"{emp.name} ({emp.role})" for emp in employees]
 
 def process_conversation(user_message):
+    """
+    Main conversational logic for the AI assistant.
+    Updates conversation_state and returns the next response.
+    """
     global conversation_state
 
-    # Reset si usuario saluda o pide reiniciar
+    # Reset if user greets or asks to restart
     if any(x in user_message.lower() for x in ["start", "restart", "reset", "nuevo", "empezar de nuevo"]):
         reset_state()
         return welcome_message()
     
-    # Paso 1: Intentar extraer datos del mensaje
+    # Step 1: Try to extract data from the message
     emp = find_employee_in_text(user_message)
     if emp:
         conversation_state["employee"] = emp
@@ -218,32 +248,37 @@ def process_conversation(user_message):
     if time:
         conversation_state["time"] = time
 
-    # --- BLOQUE CLAVE: Solo acepta el nombre de cliente si no es igual al del empleado seleccionado ---
+    # Only accept client name if not equal to selected employee (ignoring accents/case)
     name = extract_client_name(user_message)
     if name:
-        # No permitas que el nombre del empleado se use como cliente (ignorando acentos y mayúsculas)
         if conversation_state.get("employee") and normalize(name) == normalize(conversation_state["employee"].name):
-            pass  # No lo uses como cliente
+            pass  # Don't use as client name
         else:
             conversation_state["client_name"] = name
 
-    # Paso 2: Preguntar solo lo que falta
+    # Step 2: Ask only for missing info
     if not conversation_state["employee"]:
         conversation_state["last_step"] = "employee"
         emp_list = ", ".join(get_employees_info())
         return f"Which employee would you like to book with? Available employees are: {emp_list}"
     if not conversation_state["date"]:
         conversation_state["last_step"] = "date"
-        return f"What date would you prefer for the appointment with {conversation_state['employee'].name}? (e.g., 'tomorrow', 'June 15', '15/06')"
+        return (
+            f"What date would you prefer for the appointment with "
+            f"{conversation_state['employee'].name}? (e.g., 'tomorrow', 'June 15', '15/06')"
+        )
     if not conversation_state["time"]:
         conversation_state["last_step"] = "time"
         date_str = conversation_state['date'].strftime('%d/%m/%Y')
-        return f"What time would you like on {date_str} with {conversation_state['employee'].name}? (e.g., '14:00', '2pm')"
+        return (
+            f"What time would you like on {date_str} with "
+            f"{conversation_state['employee'].name}? (e.g., '14:00', '2pm')"
+        )
     if not conversation_state["client_name"]:
         conversation_state["last_step"] = "client_name"
         return "What's the client's name for the appointment?"
 
-    # Paso 3: Verificar disponibilidad y agendar
+    # Step 3: Check availability and schedule
     available = check_availability(
         conversation_state['employee'],
         conversation_state['date'],
@@ -251,9 +286,12 @@ def process_conversation(user_message):
     )
     if not available:
         date_str = conversation_state['date'].strftime('%d/%m/%Y')
-        # Solo borra la hora, NO la fecha, para que no vuelva a pedir el día
+        # Only clear the time, not the date, so user can pick another time
         conversation_state["time"] = None
-        return f"❌ {conversation_state['employee'].name} is not available on {date_str} at {conversation_state['time']}. Please select another time."
+        return (
+            f"❌ {conversation_state['employee'].name} is not available on "
+            f"{date_str} at {conversation_state['time']}. Please select another time."
+        )
 
     success, msg = create_appointment(
         conversation_state["client_name"],
@@ -262,22 +300,25 @@ def process_conversation(user_message):
         conversation_state["time"],
     )
     if not success:
-        # Si el error es solo por la hora, NO borres la fecha
+        # If error is only about time, don't clear date
         if "does not work on" in msg or "only works on" in msg:
             conversation_state["time"] = None
         elif "already has another appointment" in msg:
             conversation_state["time"] = None
         else:
-            # Si el error es de fecha, solo entonces borra fecha y hora
+            # If error is about date, clear both date and time
             conversation_state["date"] = None
             conversation_state["time"] = None
         return f"❌ {msg}"
 
-    # Solo resetea todo si se agenda exitosamente
+    # Reset all if successfully scheduled
     reset_state()
     return f"✅ {msg} The appointment has been confirmed!"
 
 def welcome_message():
+    """
+    Return a welcome message with available employees.
+    """
     emp_list = ", ".join(get_employees_info())
     return (
         "Hello! I'm your scheduling assistant. "
@@ -287,11 +328,14 @@ def welcome_message():
     )
 
 def chat_completion(history):
+    """
+    Main entry point for chat UI. Returns the assistant's response.
+    """
     if not history or not history[-1][1].strip():
         reset_state()
         return welcome_message()
     user_message = history[-1][1]
-    # Si el usuario solo saluda, responde con bienvenida + empleados
+    # If user greets, respond with welcome + employees
     if any(word in user_message.lower() for word in ["hello", "hi", "hey", "hola"]):
         reset_state()
         return welcome_message()

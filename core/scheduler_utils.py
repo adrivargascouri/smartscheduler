@@ -9,7 +9,8 @@ from smartscheduler.models.appointment import Appointment
 
 def is_time_in_employee_availability(employee, start_time, end_time):
     """
-    Verifica si la cita propuesta está DENTRO de algún intervalo de disponibilidad del empleado.
+    Check if the proposed appointment is WITHIN any of the employee's available intervals.
+    Returns True if available, False otherwise.
     """
     availability = employee.availability or {}
     day_of_week = start_time.strftime("%A")
@@ -24,13 +25,14 @@ def is_time_in_employee_availability(employee, start_time, end_time):
 
 def schedule_appointment_with_validation(client_name, employee_name, start_time, end_time):
     """
-    Intenta agendar una cita para el cliente y empleado dados, validando:
-    - Que el empleado existe
-    - Que el cliente existe
-    - Que la cita está dentro del horario laboral del empleado
-    - Que no hay solapamientos
+    Try to schedule an appointment for the given client and employee, validating:
+    - That the employee exists
+    - That the client exists
+    - That the appointment is within the employee's working hours
+    - That there are no overlaps
+    Returns (success: bool, message: str)
     """
-    # 1. Verify the existent of an employee or client 
+    # 1. Verify the existence of the client and employee
     client = get_client_by_name(client_name)
     if not client:
         return False, f"No client found with name '{client_name}'."
@@ -39,21 +41,28 @@ def schedule_appointment_with_validation(client_name, employee_name, start_time,
     if not employee:
         return False, f"No employee found with name '{employee_name}'."
 
-    # 2. Check availability (date and time)
+    # 2. Check if the appointment is within the employee's availability
     if not is_time_in_employee_availability(employee, start_time, end_time):
         day_of_week = start_time.strftime("%A")
         intervals = employee.availability.get(day_of_week, [])
         if intervals:
             pretty_intervals = ", ".join(intervals)
-            return (False, f"{employee.name} only works on {day_of_week}s at: {pretty_intervals}. Please select a time within those ranges.")
+            return (
+                False,
+                f"{employee.name} only works on {day_of_week}s at: {pretty_intervals}. "
+                "Please select a time within those ranges."
+            )
         else:
-            return (False, f"{employee.name} does not work on {day_of_week}s. Please select another day.")
+            return (
+                False,
+                f"{employee.name} does not work on {day_of_week}s. Please select another day."
+            )
 
-    # 3. Check overlaps
+    # 3. Check for overlapping appointments
     if not is_employee_available(employee.id, start_time, end_time):
         return False, f"{employee.name} already has another appointment at that time."
 
-    # 4. If everything good, schedule appointment
+    # 4. If all checks pass, schedule the appointment
     appointment = Appointment(
         client=client,
         employee=employee,
@@ -62,4 +71,8 @@ def schedule_appointment_with_validation(client_name, employee_name, start_time,
         status="Scheduled"
     )
     add_appointment(appointment)
-    return True, f"Appointment scheduled for {client_name} with {employee_name} on {start_time.strftime('%A %d/%m/%Y at %H:%M')}."
+    return (
+        True,
+        f"Appointment scheduled for {client_name} with {employee_name} on "
+        f"{start_time.strftime('%A %d/%m/%Y at %H:%M')}."
+    )

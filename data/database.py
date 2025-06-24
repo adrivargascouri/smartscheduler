@@ -15,14 +15,12 @@ STATUS_CANCELLED = "Cancelled"
 
 DB_PATH = "smartscheduler.db"
 
-
 # ---------------------------------------------------------------------------
-# Low‑level helpers
+# Low-level helpers
 # ---------------------------------------------------------------------------
 def create_connection() -> sqlite3.Connection:
     """Return a SQLite connection to the main DB."""
     return sqlite3.connect(DB_PATH)
-
 
 # ---------------------------------------------------------------------------
 # Schema
@@ -32,6 +30,7 @@ def create_tables() -> None:
     conn = create_connection()
     cursor = conn.cursor()
 
+    # Clients table
     cursor.execute(
         """CREATE TABLE IF NOT EXISTS clients (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,6 +40,7 @@ def create_tables() -> None:
         )"""
     )
 
+    # Employees table
     cursor.execute(
         """CREATE TABLE IF NOT EXISTS employees (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,6 +52,7 @@ def create_tables() -> None:
         )"""
     )
 
+    # Appointments table
     cursor.execute(
         """CREATE TABLE IF NOT EXISTS appointments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,6 +66,7 @@ def create_tables() -> None:
         )"""
     )
 
+    # Users table
     cursor.execute(
         """CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,11 +79,14 @@ def create_tables() -> None:
     conn.commit()
     conn.close()
 
-
 # ---------------------------------------------------------------------------
 # Clients
 # ---------------------------------------------------------------------------
 def get_client_by_name(name: str) -> Optional[Client]:
+    """
+    Get a client by their name (case-insensitive).
+    Returns a Client object or None if not found.
+    """
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM clients WHERE LOWER(name) = LOWER(?)", (name,))
@@ -94,7 +99,6 @@ def get_client_by_name(name: str) -> Optional[Client]:
     client = Client(name=row[1], email=row[2], phone=row[3])
     client.id = row[0]
     return client
-
 
 def add_client(client: Client) -> None:
     """
@@ -116,8 +120,10 @@ def add_client(client: Client) -> None:
     conn.commit()
     conn.close()
 
-
 def get_clients() -> List[Client]:
+    """
+    Return a list of all clients in the database.
+    """
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM clients")
@@ -131,11 +137,14 @@ def get_clients() -> List[Client]:
         clients.append(c)
     return clients
 
-
 # ---------------------------------------------------------------------------
 # Employees
 # ---------------------------------------------------------------------------
 def get_employee_by_email(email: str) -> Optional[Employee]:
+    """
+    Get an employee by their email.
+    Returns an Employee object or None if not found.
+    """
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM employees WHERE email = ?", (email,))
@@ -161,7 +170,10 @@ def get_employee_by_email(email: str) -> Optional[Employee]:
     return emp
 
 def get_employee_by_name(name: str) -> Optional[Employee]:
-    """Get an employee by their name."""
+    """
+    Get an employee by their name (case-insensitive).
+    Returns an Employee object or None if not found.
+    """
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM employees WHERE LOWER(name) = LOWER(?)", (name,))
@@ -185,7 +197,6 @@ def get_employee_by_name(name: str) -> Optional[Employee]:
     )
     emp.id = row[0]
     return emp
-
 
 def add_employee(employee: Employee) -> None:
     """
@@ -214,8 +225,10 @@ def add_employee(employee: Employee) -> None:
     conn.commit()
     conn.close()
 
-
 def get_employees() -> List[Employee]:
+    """
+    Return a list of all employees in the database.
+    """
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM employees")
@@ -226,8 +239,8 @@ def get_employees() -> List[Employee]:
     for row in rows:
         availability_raw = row[5] or "{}"
         try:
-            availability= json.loads(availability_raw)
-            if not isinstance(availability,dict):
+            availability = json.loads(availability_raw)
+            if not isinstance(availability, dict):
                 availability = {}
         except Exception:
             availability = {}
@@ -242,11 +255,14 @@ def get_employees() -> List[Employee]:
         employees.append(emp)
     return employees
 
-
 # ---------------------------------------------------------------------------
 # Appointments
 # ---------------------------------------------------------------------------
 def add_appointment(appointment: Appointment) -> None:
+    """
+    Add a new appointment to the database.
+    Updates the ``appointment.id`` field with the DB id.
+    """
     conn = create_connection()
     cursor = conn.cursor()
 
@@ -266,9 +282,10 @@ def add_appointment(appointment: Appointment) -> None:
     conn.commit()
     conn.close()
 
-
 def update_appointment_status(appointment_id: int, new_status: str) -> None:
-    """Update the *status* field of a single appointment."""
+    """
+    Update the *status* field of a single appointment.
+    """
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -277,7 +294,6 @@ def update_appointment_status(appointment_id: int, new_status: str) -> None:
     )
     conn.commit()
     conn.close()
-
 
 def cancel_appointments_by_client_id(client_id: int) -> int:
     """
@@ -312,7 +328,9 @@ def cancel_appointment_by_id(appointment_id: int) -> int:
     return affected
 
 def get_appointments():
-    """Return a list of rows with ALL appointments (joined with client / employee names)."""
+    """
+    Return a list of rows with ALL appointments (joined with client / employee names).
+    """
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -333,7 +351,7 @@ def get_appointments():
 
 def get_active_appointments_by_client_id(client_id: int):
     """
-    Returns a list of scheduled (no canceladas ni completadas) appointments for a client.
+    Returns a list of scheduled (not cancelled or completed) appointments for a client.
     Each row: (id, start_time, end_time, employee_id)
     """
     conn = create_connection()
@@ -345,8 +363,6 @@ def get_active_appointments_by_client_id(client_id: int):
     rows = cursor.fetchall()
     conn.close()
     return rows
-
-
 
 def is_employee_available(employee_id: int, start_time: datetime, end_time: datetime) -> bool:
     """
@@ -383,11 +399,14 @@ def is_employee_available(employee_id: int, start_time: datetime, end_time: date
     # Available if no overlap found
     return result is None
 
-
 # ---------------------------------------------------------------------------
 # Users
 # ---------------------------------------------------------------------------
 def add_user(username: str, password: str, role: str) -> None:
+    """
+    Add a new user to the database.
+    Ignores if the username already exists.
+    """
     conn = create_connection()
     cursor = conn.cursor()
     try:
@@ -402,8 +421,11 @@ def add_user(username: str, password: str, role: str) -> None:
     finally:
         conn.close()
 
-
 def validate_user(username: str, password: str):
+    """
+    Validate a user's credentials.
+    Returns the user's role if valid, else None.
+    """
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT role FROM users WHERE username=? AND password=?", (username, password))
@@ -411,8 +433,11 @@ def validate_user(username: str, password: str):
     conn.close()
     return row[0] if row else None
 
-
 def get_user_by_username(username: str):
+    """
+    Get a user by their username.
+    Returns the user row or None if not found.
+    """
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
@@ -420,11 +445,13 @@ def get_user_by_username(username: str):
     conn.close()
     return user
 
-
 # ---------------------------------------------------------------------------
 # Maintenance helpers
 # ---------------------------------------------------------------------------
 def reset_database() -> None:
+    """
+    Delete all data from all tables (for maintenance/testing).
+    """
     conn = create_connection()
     cursor = conn.cursor()
     cursor.executescript(
